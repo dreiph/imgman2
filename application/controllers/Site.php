@@ -33,13 +33,13 @@ class Site extends CI_Controller {
 		$config['last_link'] = 'Paskutinis';
 		
 		$config['base_url'] = base_url().'site/index/';
-		$config['per_page'] = 2;
+		$config['per_page'] = 3;
 		$config["uri_segment"] = 3;
 		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
 
 		if(!isset($_SESSION['order']))
 		{
-			$_SESSION['order']='date';
+			$_SESSION['order']='datetime_uploaded';
 		}				
 		if(!isset($_SESSION['sort']))
 		{
@@ -109,12 +109,22 @@ class Site extends CI_Controller {
 	
 	public function upload()
 	{
-		var_dump($_FILES);
-		$config['upload_path']          = './uploads/';
-		$config['allowed_types']        = 'gif|jpg|png';
-		$config['max_size']             = 10000;
-		$config['max_width']            = 1024;
-		$config['max_height']           = 768;
+		if(!isset($_FILES))
+		{
+			die("You did not try to upload file");
+		}
+		$config['upload_path']          = './public/cdn/';
+		$config['allowed_types']        = 'gif|jpg|jpeg|png';
+		$config['file_ext_tolower']     = true;
+		$config['overwrite'] 		    = false;
+		$config['max_filename'] 		= 255;
+		$config['remove_spaces'] 		= true;
+		$config['encrypt_name'] 		= true;
+		$config['detect_mime'] 			= true;
+		$config['mod_mime_fix'] 		= true;
+		$config['max_size']             = 20480;
+		$config['max_width']            = 20000;
+		$config['max_height']           = 20000;
 
 		$this->load->library('upload', $config);
 
@@ -122,13 +132,35 @@ class Site extends CI_Controller {
 		{
 				$error = array('error' => $this->upload->display_errors());
 
-				$this->load->view('upload_form', $error);
+				var_dump($error);
 		}
 		else
 		{
 				$data = array('upload_data' => $this->upload->data());
+				var_dump($data);
 
-				$this->load->view('upload_success', $data);
+				$q=$this->db->query("INSERT INTO images (
+				img_dimensions, 
+				img_filesize, 
+				img_system_filename, 
+				img_upload_filename, 
+				datetime_uploaded, 
+				user_uploaded, 
+				ip
+				) VALUES(?,?,?,?,?,?,?)", array(
+				$data['upload_data']['image_width'].'x'.$data['upload_data']['image_height'], 
+				$data['upload_data']['file_size'], 
+				"public/cdn/".$data['upload_data']['file_name'], 
+				$data['upload_data']['orig_name'], 
+				date("Y-m-d H:i:s"), 
+				'admin', 
+				$_SERVER['REMOTE_ADDR'])
+				);
 		}
+	}
+	
+	public function reset()
+	{
+		session_destroy();
 	}
 }

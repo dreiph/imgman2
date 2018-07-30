@@ -82,6 +82,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 				<tr>
 					<th>Image</th>
 					<th>Dimensions</th>
+					<th title="In KB">Filesize</th>
 					<th>Original filename</th>
 					<th>Path to CDN image</th>
 					<th>Upload date</th>
@@ -95,6 +96,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 					</td>
 					<td>
 						<?php echo $r->img_dimensions; ?>
+					</td>
+					<td>
+						<?php echo $r->img_filesize; ?> KB
 					</td>
 					<td>
 						<?php echo $r->img_upload_filename; ?>
@@ -139,7 +143,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 </div>
 
 <div id="upload-drop" class="uk-placeholder uk-text-center">
-<i class="uk-icon-cloud-upload uk-icon-medium uk-text-muted uk-margin-small-right"></i> Attach binaries by dropping them here or <a class="uk-form-file">selecting one<input id="upload-select" type="file"></a>.
+<i class="uk-icon-cloud-upload uk-icon-medium uk-text-muted uk-margin-small-right"></i> Attach binaries by dropping them here or <a class="uk-form-file">selecting one<input id="upload-select" name="userfile" type="file"></a>.
 </div>
 
 <script>
@@ -153,6 +157,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
             action: '<?php echo base_url(); ?>site/upload', // upload url
 
             allow : '*.(jpg|jpeg|gif|png)', // allow only images
+			
+			param : 'userfile',
 
             loadstart: function() {
                 bar.css("width", "0%").text("0%");
