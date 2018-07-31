@@ -18,6 +18,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 	<link rel="stylesheet" href="public/uikit/css/components/slidenav.min.css">
 	<link rel="stylesheet" href="public/uikit/css/components/placeholder.min.css">
 	<link rel="stylesheet" href="public/uikit/css/components/form-file.min.css">
+	<link rel="stylesheet" href="public/uikit/css/components/progress.min.css">
 	
 	<script src="public/jq/jquery-3.3.1.min.js"></script>
 	<script src="public/uikit/js/uikit.min.js"></script>
@@ -34,8 +35,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 						<img src="public/img/imgman.png" alt="Logo">
 					</div>
 					<div class="uk-text-right">
-						<a href="" class="uk-button">
-							<i class="uk-icon-user"></i> Logout
+						There <?php echo($stats_count > 1 ? "are" : "is"); ?> <strong style="font-size:1.5rem;"><?php echo $stats_count; ?></strong> image<?php echo($stats_count > 1 ? "s" : ""); ?> on the system.
+						<a href="site/logout" class="uk-button">
+							<i class="uk-icon-user"></i> Logout<strong><?php if(isset($_SESSION['username'])) { echo ", ", $_SESSION['username']; } ?></strong><?php if(isset($_SESSION['role'])){ echo " (".$_SESSION['role'].")"; } ?>
 						</a>
 					</div>
 				</div>
@@ -54,6 +56,15 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 					<a href="site/action/date_desc" class="uk-button uk-button-primary <?php if($_SESSION['order']=='datetime_uploaded' && $_SESSION['sort']=='desc'){ echo 'filter_marked'; } ?>">
 						Date DESC <i class="uk-icon-sort-alpha-desc"></i>
 					</a>
+					<?php if(isset($image_dimensions)): ?>
+					<select id="image_dimensions" name="image_dimensions">
+					<option value="ALL" <?php if(!isset($_SESSION['imde'])) { echo "selected"; } ?>>ALL</option>
+					<?php foreach($image_dimensions as $imde): ?>
+					<option value="<?php echo $imde->imde; ?>" <?php if(isset($_SESSION['imde'])) { if($_SESSION['imde']==$imde->imde) { echo "selected"; } } ?>><?php echo $imde->imde; ?></option>
+					<?php endforeach ?>
+					</select>
+					<?php endif; ?>
+					
 					<input type="text" name="sq" value="<?php if(isset($_SESSION['sq'])){ echo $_SESSION['sq']; } ?>" placeholder="Enter search query" class="uk-input" />
 					<button class="uk-button uk-button-primary">
 						<i class="uk-icon-search"></i> Search
@@ -61,7 +72,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 					</form>
 				</div>
 				<div class="uk-text-right">
-					<a class="uk-button uk-button-success">
+					<a class="uk-button uk-button-success" href="#modal_upload" data-uk-modal="{center:true}">
 						<i class="uk-icon-plus"></i> Upload
 					</a>
 				</div>
@@ -80,6 +91,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 				<div class="uk-width-1-1">
 				<table class="uk-table uk-table-striped">
 				<tr>
+					<?php if($_SESSION['role']=='admin'): ?><th>Action</th><?php endif; ?>
 					<th>Image</th>
 					<th>Dimensions</th>
 					<th title="In KB">Filesize</th>
@@ -89,9 +101,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 				</tr>
 				<?php foreach($results as $r): ?>
 				<tr>
+					<?php if($_SESSION['role']=='admin'): ?>
 					<td>
-						<a href="<?php echo $r->img_system_filename; ?>" data-uk-lightbox="{group:'my-group'}" title="<?php echo base_url(); ?><?php echo $r->img_system_filename; ?> ">
-						<img  class="uk-thumbnail" src="<?php echo $r->img_system_filename; ?>" data-id="<?php echo $r->uid; ?>" />
+					<form action="site/delete" method="post" name="frm">
+					<input type="hidden" name="uid" value="<?php echo $r->uid; ?>" />
+					<input type="submit" name="delete" value="X" class="uk-button uk-button-danger" />
+					</form>
+					</td>
+					<?php endif; ?>
+					<td>
+						<a href="<?php echo $this->config->item('cdn_url').$r->img_system_filename; ?>" data-uk-lightbox="{group:'my-group'}" title="<?php echo base_url(); ?><?php echo $r->img_system_filename; ?> ">
+						<img  class="uk-thumbnail" src="<?php echo $this->config->item('cdn_url').$r->img_system_filename; ?>" data-id="<?php echo $r->uid; ?>" />
 						</a>
 					</td>
 					<td>
@@ -104,8 +124,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 						<?php echo $r->img_upload_filename; ?>
 					</td>
 					<td>
-						<?php echo base_url(); ?><?php echo $r->img_system_filename; ?> 
-						<a href="<?php echo base_url(); ?><?php echo $r->img_system_filename; ?>" target="_blank" title="Open in new tab">
+						<span><?php echo base_url(),str_ireplace("\\", "/", $this->config->item('cdn_url')); ?><?php echo $r->img_system_filename; ?></span>
+						<a href="<?php echo base_url(),str_ireplace("\\", "/", $this->config->item('cdn_url')); ?><?php echo $r->img_system_filename; ?>" target="_blank" title="Open in new tab">
 							<i class="uk-icon-arrow-right"></i>
 						</a>
 					</td>
@@ -137,17 +157,34 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 	</div>
 	
 
+<!-- This is the modal for uploading images -->
+<div id="modal_upload" class="uk-modal">
+    <div class="uk-modal-dialog">
+        <a class="uk-modal-close uk-close"></a>
+		<div id="progressbar" class="uk-progress uk-hidden">
+			<div class="uk-progress-bar" style="width: 0%;">...</div>
+		</div>
 
-<div id="progressbar" class="uk-progress uk-hidden">
-    <div class="uk-progress-bar" style="width: 0%;">...</div>
+		<div id="upload-drop" class="uk-placeholder uk-text-center">
+		<i class="uk-icon-cloud-upload uk-icon-medium uk-text-muted uk-margin-small-right"></i> Attach binaries by dropping them here or <a class="uk-form-file">selecting one<input id="upload-select" name="userfile" type="file"></a>.
+		</div>
+	</div>
+</div>	
+
+<!-- This is the modal for messages -->
+<div id="modal_msg" class="uk-modal">
+    <div class="uk-modal-dialog">
+        <a class="uk-modal-close uk-close"></a>
+		<div class="uk-alert uk-alert-success">
+			<h4>
+			<?php if(isset($_GET['msg'])) { echo $_GET['msg']; } ?>
+			</h4>
+		</div>
+	</div>
 </div>
-
-<div id="upload-drop" class="uk-placeholder uk-text-center">
-<i class="uk-icon-cloud-upload uk-icon-medium uk-text-muted uk-margin-small-right"></i> Attach binaries by dropping them here or <a class="uk-form-file">selecting one<input id="upload-select" name="userfile" type="file"></a>.
-</div>
-
+	
+<!--Upload script-->
 <script>
-
     $(function(){
 
         var progressbar = $("#progressbar"),
@@ -178,14 +215,44 @@ defined('BASEPATH') OR exit('No direct script access allowed');
                     progressbar.addClass("uk-hidden");
                 }, 250);
 
-                alert("Upload Completed")
+                var modal = UIkit.modal("#modal_upload");
+				if ( modal.isActive() ) {
+					modal.hide();
+					location.reload();
+				} else {
+					modal.show();
+				}
             }
         };
 
         var select = UIkit.uploadSelect($("#upload-select"), settings),
             drop   = UIkit.uploadDrop($("#upload-drop"), settings);
     });
+	(function($){
+		$('#image_dimensions').on('change', function(){
+			window.location='site/action/imde/?image_dimensions='+$(this).val();
+		});
+		
+		<?php if(isset($_GET['msg'])): ?>
+		var modal_msg = UIkit.modal("#modal_msg");
+		modal_msg.show();
+		<?php endif; ?>
+		
+		//copying
+		const span = document.querySelector("span");
 
+		span.onclick = function() {
+			document.execCommand("copy");
+		}
+
+		span.addEventListener("copy", function(event) {
+			event.preventDefault();
+			if (event.clipboardData) {
+				event.clipboardData.setData("text/plain", span.textContent);
+				console.log(event.clipboardData.getData("text"))
+			}
+		});
+	})(jQuery);
 </script>
 							
 </body>

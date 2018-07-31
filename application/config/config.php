@@ -24,6 +24,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 |
 */
 $config['base_url'] = '//localhost/imgman/imgman/';
+$config['cdn_url'] = 'public\\cdn\\';
 
 /*
 |--------------------------------------------------------------------------

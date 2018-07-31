@@ -2,15 +2,64 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Site extends CI_Controller {
-        public function __construct()
-        {
-                parent::__construct();
-                session_start();
-        }
+	public function __construct()
+	{
+			parent::__construct();
+			session_start();
+			// $this->output->enable_profiler(true);
+	}
+	public function login()
+	{
+		$data=array();
+		if(isset($_POST['username']) && isset($_POST['password']))
+		{
+			$username=$this->input->post('username');
+			$password=$this->input->post('password');
+			
+			$q=$this->db->query("SELECT uid, active, role FROM users WHERE username=? AND password=sha2(?,224) LIMIT 1", array($username,$password));
+			
+			if($q->num_rows() == 1)
+			{
+				if($q->row()->active==1)
+				{
+					$_SESSION['loggedin']=true;
+					$_SESSION['username']=$username;
+					$_SESSION['role']=$q->row()->role;
+					redirect('site/index', 'refresh');
+				}
+				else
+				{
+					$data['error']="Your account is disabled.";
+				}
+			}
+			else
+			{
+				$data['error']="Incorrect username and/or password";
+			}
+		}
+		$this->load->view('login', $data);
+	}
+	public function logout()
+	{
+		unset($_SESSION);
+		session_destroy();
+		redirect('site/login', 'refresh');
+	}
 	public function index()
 	{
-		// $this->output->enable_profiler(true);
+		if(!isset($_SESSION['loggedin']))
+		{
+			redirect('site/login');
+		}
 		$data=array();
+		
+		//stats
+		$q=$this->db->query("SELECT uid FROM images");
+		$data['stats_count']=$q->num_rows();
+		
+		//image dimensions for filtering
+		$q=$this->db->query("SELECT DISTINCT(img_dimensions) as imde FROM images ORDER BY imde");
+		$data['image_dimensions']=$q->result();
 		
 		//pagination
 		$this->load->library('pagination');
@@ -29,11 +78,11 @@ class Site extends CI_Controller {
 		$config['last_tag_open'] = "<li>";
 		$config['last_tagl_close'] = "</li>";
 		
-		$config['first_link'] = 'Pirmas';
-		$config['last_link'] = 'Paskutinis';
+		$config['first_link'] = 'First';
+		$config['last_link'] = 'Last';
 		
 		$config['base_url'] = base_url().'site/index/';
-		$config['per_page'] = 3;
+		$config['per_page'] = 10;
 		$config["uri_segment"] = 3;
 		$page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
 
@@ -46,17 +95,26 @@ class Site extends CI_Controller {
 			$_SESSION['sort']='desc';
 		}
 		
-		if(isset($_SESSION['sq']))
+		if(isset($_SESSION['imde']))
 		{
-			$q=$this->db->query("SELECT * FROM images WHERE img_dimensions LIKE '%".$_SESSION['sq']."%' OR img_upload_filename LIKE '%".$_SESSION['sq']."%' OR img_system_filename LIKE '%".$_SESSION['sq']."%' ORDER BY ".$_SESSION['order']." ".$_SESSION['sort']." LIMIT ?, ?", array((int)$page,(int)$config['per_page']));
-			
-			$config['total_rows'] = $this->db->query("SELECT uid FROM images WHERE img_dimensions LIKE '%".$_SESSION['sq']."%' OR img_upload_filename LIKE '%".$_SESSION['sq']."%' OR img_system_filename LIKE '%".$_SESSION['sq']."%'")->num_rows();
+			$sql_imde=" AND img_dimensions='".$_SESSION['imde']."'";
 		}
 		else
 		{
-			$q=$this->db->query("SELECT * FROM images WHERE 1=1 ORDER BY ".$_SESSION['order']." ".$_SESSION['sort']." LIMIT ?, ?", array((int)$page,(int)$config['per_page']));
+			$sql_imde="";
+		}
+		
+		if(isset($_SESSION['sq']))
+		{
+			$q=$this->db->query("SELECT * FROM images WHERE img_dimensions LIKE '%".$_SESSION['sq']."%' OR img_upload_filename LIKE '%".$_SESSION['sq']."%' OR img_system_filename LIKE '%".$_SESSION['sq']."%' ".$sql_imde." ORDER BY ".$_SESSION['order']." ".$_SESSION['sort']." LIMIT ?, ?", array((int)$page,(int)$config['per_page']));
 			
-			$config['total_rows'] = $this->db->query("SELECT uid FROM images WHERE 1=1")->num_rows();
+			$config['total_rows'] = $this->db->query("SELECT uid FROM images WHERE img_dimensions LIKE '%".$_SESSION['sq']."%' OR img_upload_filename LIKE '%".$_SESSION['sq']."%' OR img_system_filename LIKE '%".$_SESSION['sq']."%'".$sql_imde)->num_rows();
+		}
+		else
+		{
+			$q=$this->db->query("SELECT * FROM images WHERE 1=1 ".$sql_imde." ORDER BY ".$_SESSION['order']." ".$_SESSION['sort']." LIMIT ?, ?", array((int)$page,(int)$config['per_page']));
+			
+			$config['total_rows'] = $this->db->query("SELECT uid FROM images WHERE 1=1".$sql_imde)->num_rows();
 		}
 
 		$this->pagination->initialize($config);
@@ -77,6 +135,10 @@ class Site extends CI_Controller {
 	
 	public function action($action)
 	{
+		if(!isset($_SESSION['loggedin']))
+		{
+			redirect('site/login');
+		}
 		if($action=='date_asc')
 		{
 			$_SESSION['order']='datetime_uploaded';
@@ -87,10 +149,29 @@ class Site extends CI_Controller {
 			$_SESSION['order']='datetime_uploaded';
 			$_SESSION['sort']='desc';
 		}
+		if($action=='imde')
+		{
+			if(isset($_GET['image_dimensions']))
+			{
+				$image_dimensions=$this->input->get('image_dimensions', true);
+				if($image_dimensions=="ALL")
+				{
+					unset($_SESSION['imde']);
+				}
+				else
+				{
+					$_SESSION['imde']=$image_dimensions;
+				}
+			}
+		}
 		redirect('site/index','refresh');
 	}
 	public function search()
 	{
+		if(!isset($_SESSION['loggedin']))
+		{
+			redirect('site/login');
+		}
 		if(isset($_POST['sq']))
 		{
 			if($_POST['sq']<>""){
@@ -109,6 +190,10 @@ class Site extends CI_Controller {
 	
 	public function upload()
 	{
+		if(!isset($_SESSION['loggedin']))
+		{
+			redirect('site/login');
+		}
 		if(!isset($_FILES))
 		{
 			die("You did not try to upload file");
@@ -158,7 +243,47 @@ class Site extends CI_Controller {
 				);
 		}
 	}
-	
+	public function delete()
+	{
+		$data=array();
+		if($_SESSION['role']=='admin')
+		{
+			if(isset($_POST['uid']))
+			{
+				$uid=$this->input->post('uid', true);
+				
+				//delete image
+				$q=$this->db->query("SELECT img_system_filename FROM images WHERE uid=? LIMIT 1", array($uid));
+				if($q->num_rows()==1)
+				{
+					$image_delete=$q->row()->img_system_filename;
+					if(unlink(FCPATH.$this->config->item('cdn_url').$image_delete))
+					{
+						//delete entry from DB
+						$q=$this->db->query("DELETE FROM images WHERE uid=? LIMIT 1", array($uid));
+						$data['msg']="Successfully deleted image #".$uid;
+						redirect('site/index/?msg='.$data['msg'], 'refresh');
+					}
+					else
+					{
+						die("Unable to deleteimage");
+					}
+				}
+				else
+				{
+					die("Unknown img_system_filename!");
+				}
+			}
+			else
+			{
+				die("Unknown ID to delete!");
+			}
+		}
+		else
+		{
+			die("You don't have permission to delete files!");
+		}
+	}
 	public function reset()
 	{
 		session_destroy();

@@ -78,3 +78,10 @@ p {
 .filter_marked {
 	background-color:#0d8ab9;
 }
+
+.lock {
+	background-color:#dedede;
+	background-image:url(../../img/lock.jpg);
+	background-size:cover;
+	background-repeat:no-repeat;
+}
